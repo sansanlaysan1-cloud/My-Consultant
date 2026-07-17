@@ -6,10 +6,12 @@ import google.generativeai as genai
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+# Railway ပေါ်မှာ ချက်ချင်း Crash မဖြစ်စေဘဲ ရှင်းလင်းတဲ့ Error ပြပေးရန်
 if not BOT_TOKEN or not GEMINI_API_KEY:
-    raise ValueError("⚠️ Railway Variables ထဲမှာ BOT_TOKEN နဲ့ GEMINI_API_KEY ထည့်ပေးရန် လိုအပ်ပါသည်!")
+    print("⚠️ ERROR: BOT_TOKEN နှင့် GEMINI_API_KEY ကို Railway Variables တွင် ထည့်ပေးရန် လိုအပ်ပါသည်!")
+    exit(1)
 
-# Telegram Bot နဲ့ Gemini ကို Initialize လုပ်ခြင်း
+# Telegram Bot နှင့် Gemini ကို Initialize လုပ်ခြင်း
 bot = telebot.TeleBot(BOT_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -32,11 +34,17 @@ How you should react:
 Always match the user's vibe and keep it punchy!
 """
 
-# Latest & Fastest Model ကို သုံးထားပါသည်
-model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",
-    system_instruction=system_instruction
-)
+# Model မရခဲ့ရင် အလိုအလျောက် အငြိမ်ဆုံး Model သို့ ပြောင်းပေးမယ့် စနစ်
+try:
+    model = genai.GenerativeModel(
+        model_name="gemini-2.5-flash",
+        system_instruction=system_instruction
+    )
+except Exception:
+    model = genai.GenerativeModel(
+        model_name="gemini-2.0-flash",
+        system_instruction=system_instruction
+    )
 
 # User တစ်ယောက်ချင်းစီရဲ့ Chat History (Memory) ကို မှတ်ထားနိုင်ရန်
 user_chats = {}
@@ -66,14 +74,11 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):
-    # AI စဥ်းစားနေတုန်း Telegram မှာ 'typing...' ဆိုပြီး ပြထားပေးပါမယ်
     bot.send_chat_action(message.chat.id, 'typing')
     try:
-        # User ရဲ့ session (memory) ကို ယူပြီး စကားပြောပါမယ်
         chat_session = get_user_chat(message.chat.id)
         response = chat_session.send_message(message.text)
         
-        # Telegram မှာ Markdown parsing error တက်ရင် Plain text နဲ့ ပြန်ပို့ပေးမယ့် Safety fallback
         try:
             bot.reply_to(message, response.text, parse_mode="Markdown")
         except Exception:
