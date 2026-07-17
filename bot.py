@@ -13,42 +13,75 @@ if not BOT_TOKEN or not GEMINI_API_KEY:
 bot = telebot.TeleBot(BOT_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Gemini Model ကို VPN/Digital Product တွေအတွက် Custom Assistant အဖြစ် စနစ်တကျ ညွှန်ကြားခြင်း
+# All-round Co-pilot အဖြစ် စနစ်တကျ ညွှန်ကြားခြင်း
 system_instruction = """
-You are an elite, sharp Personal Business Assistant for a young digital merchant selling VPNs and digital products. 
-When the user sends their daily business metrics (e.g., ad spend, conversions, revenue, customer messages, or ROI):
-1. Analyze the performance sharply (identify wins, leaks, or trends).
-2. Deliver a concise, structured 'Daily Business Briefing'.
-3. End with a high-energy, actionable, and hyped 'Motivation Message' to fuel their hustle for the day. 
-Use a professional yet friendly, inspiring tone with cool emojis (🤘🔥🚀). Keep it punchy and impactful!
+You are an elite, super-smart Personal Assistant and Business Co-pilot for a young digital entrepreneur selling VPNs and digital products.
+You handle ANYTHING the user throws at you with sharp intellect, high energy, and loyalty.
+
+How you should react:
+1. IF THE USER SENDS BUSINESS METRICS (ad spend, sales, revenue, ROI, customer messages, etc.):
+   - Analyze the numbers sharply (identify wins, leaks, or trends).
+   - Deliver your signature structured 'Daily Business Briefing'.
+   - End with a hyped, actionable 'Motivation Message' (🤘🔥🚀) to fuel their hustle.
+
+2. IF THE USER SENDS ANYTHING ELSE (questions, brainstorming, coding help, casual talk, ideas, problems):
+   - Act as a knowledgeable, empathetic peer and expert advisor.
+   - Provide direct, clear, and actionable answers without unnecessary fluff.
+   - Maintain a supportive, entrepreneurial, and cool tone.
+
+Always match the user's vibe and keep it punchy!
 """
 
+# Latest & Fastest Model ကို သုံးထားပါသည်
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
+    model_name="gemini-2.5-flash",
     system_instruction=system_instruction
 )
 
-@bot.message_handler(commands=['start', 'help'])
+# User တစ်ယောက်ချင်းစီရဲ့ Chat History (Memory) ကို မှတ်ထားနိုင်ရန်
+user_chats = {}
+
+def get_user_chat(user_id):
+    if user_id not in user_chats:
+        user_chats[user_id] = model.start_chat(history=[])
+    return user_chats[user_id]
+
+@bot.message_handler(commands=['start', 'help', 'reset'])
 def send_welcome(message):
+    if message.text == '/reset':
+        user_chats[message.chat.id] = model.start_chat(history=[])
+        bot.reply_to(message, "🔄 **Memory Cleared!** စကားဝိုင်း အသစ်ပြန်စပါပြီ Boss 🤘")
+        return
+
     welcome_text = (
-        "🤘 **Hello Boss! I am your Daily Business Assistant.**\n\n"
-        "ဒီနေ့အတွက် Business Metrics တွေကို ပို့ပေးလို့ရပါပြီ။\n"
-        "*(ဥပမာ - Ad spend: 20,000 MMK, Messages: 50, Sales: 15, Revenue: 100,000 MMK)*\n\n"
-        "Data တွေကို သုံးသပ်ပြီး Business Briefing နဲ့ Motivation Message ကို ချက်ချင်း ထုတ်ပေးပါမယ်!"
+        "🤘 **Hello Boss! I am your All-in-One Personal Co-pilot.**\n\n"
+        "ကျွန်တော့်ဆီကို **ကြိုက်တာအကုန်** ပို့လို့ရပါပြီ-\n"
+        "📊 **Daily Metrics:** Ad spend, sales, profit တွေ ပို့ပြီး Briefing & Motivation ယူနိုင်သလို\n"
+        "💡 **Brainstorm / Ideas:** လုပ်ငန်း အကြံဉာဏ်၊ Marketing strategy တွေ တိုင်ပင်လို့ရပါတယ်\n"
+        "💻 **Coding & Tech:** Error ရှင်းတာ၊ Code ရေးခိုင်းတာတွေလည်း လုပ်ပေးပါတယ်\n"
+        "💬 **General Chat:** မေးချင်တာရှိရင်လည်း ကြိုက်တဲ့အချိန် မေးလို့ရပါတယ်\n\n"
+        "*(စကားပြောထားတာတွေကို မှတ်မိနေမှာဖြစ်လို့ စကားဝိုင်း အသစ်ပြန်စချင်ရင် `/reset` ကို နှိပ်ပါ)*"
     )
     bot.reply_to(message, welcome_text, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda message: True)
-def handle_metrics(message):
+def handle_messages(message):
     # AI စဥ်းစားနေတုန်း Telegram မှာ 'typing...' ဆိုပြီး ပြထားပေးပါမယ်
     bot.send_chat_action(message.chat.id, 'typing')
     try:
-        # User ပို့လိုက်တဲ့ Metrics ကို Gemini ဆီပို့ပြီး ဖြေခိုင်းပါမယ်
-        response = model.generate_content(message.text)
-        bot.reply_to(message, response.text)
+        # User ရဲ့ session (memory) ကို ယူပြီး စကားပြောပါမယ်
+        chat_session = get_user_chat(message.chat.id)
+        response = chat_session.send_message(message.text)
+        
+        # Telegram မှာ Markdown parsing error တက်ရင် Plain text နဲ့ ပြန်ပို့ပေးမယ့် Safety fallback
+        try:
+            bot.reply_to(message, response.text, parse_mode="Markdown")
+        except Exception:
+            bot.reply_to(message, response.text)
+            
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error processing with AI: {str(e)}")
 
 if __name__ == "__main__":
-    print("🤖 Bot is running on Railway...")
+    print("🤖 All-in-One Co-pilot Bot is running on Railway...")
     bot.infinity_polling()
